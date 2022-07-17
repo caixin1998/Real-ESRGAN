@@ -8,6 +8,8 @@ from basicsr.utils import DiffJPEG, USMSharp
 from basicsr.utils.img_process_util import filter2D
 from basicsr.utils.registry import MODEL_REGISTRY
 from collections import OrderedDict
+from basicsr.archs import build_network
+from basicsr.losses import build_loss
 from torch.nn import functional as F
 
 
@@ -24,7 +26,20 @@ class RealESRGANModel(SRGANModel):
         super(RealESRGANModel, self).__init__(opt)
         self.jpeger = DiffJPEG(differentiable=False).cuda()  # simulate JPEG compression artifacts
         self.usm_sharpener = USMSharp().cuda()  # do usm sharpening
+
+        # train_opt = self.opt['train']
+        # self.cri_l1 = build_loss(train_opt['L1_opt']).to(self.device)
         self.queue_size = opt.get('queue_size', 180)
+        if 'network_gaze' in self.opt:
+            self.network_gaze = build_network(self.opt["network_gaze"])
+            self.network_gaze = self.model_to_device(self.network_gaze)
+            self.print_network(self.network_gaze)
+            load_path = self.opt['path'].get('pretrain_network_gaze')
+            if load_path is not None:
+                self.load_network(self.network_gaze, load_path, True, "state_dict")
+            self.network_gaze.eval()
+            for param in self.network_gaze.parameters():
+                param.requires_grad = False
 
     @torch.no_grad()
     def _dequeue_and_enqueue(self):
@@ -182,6 +197,15 @@ class RealESRGANModel(SRGANModel):
                 self.gt = data['gt'].to(self.device)
                 self.gt_usm = self.usm_sharpener(self.gt)
 
+        if 'loc_left_eye' in data:
+                # get facial component locations, shape (batch, 4)
+            self.loc_left_eyes = data['loc_left_eye']
+            self.loc_right_eyes = data['loc_right_eye']
+            # self.loc_mouths = data['loc_mouth']
+
+        if 'gaze' in data:
+            self.gaze = data['gaze'].to(self.device)
+
     def nondist_validation(self, dataloader, current_iter, tb_logger, save_img):
         # do not use the synthetic process during validation
         self.is_train = False
@@ -207,6 +231,7 @@ class RealESRGANModel(SRGANModel):
         self.optimizer_g.zero_grad()
         self.output = self.net_g(self.lq)
 
+
         l_g_total = 0
         loss_dict = OrderedDict()
         if (current_iter % self.net_d_iters == 0 and current_iter > self.net_d_init_iters):
@@ -224,6 +249,17 @@ class RealESRGANModel(SRGANModel):
                 if l_g_style is not None:
                     l_g_total += l_g_style
                     loss_dict['l_g_style'] = l_g_style
+
+            if 'network_gaze' in self.opt:
+                gaze_weight = self.opt['train']['gaze_weight']
+                out_resize = self.resize_for_gaze(self.output)
+                x_in = {"face":out_resize,
+                "gaze":self.gaze}
+                gaze_out = self.network_gaze(x_in)
+                pred = torch.where(self.gaze != 0, gaze_out["pred"], self.gaze)
+                l_gaze = self.cri_pix(pred, self.gaze) * gaze_weight
+                l_g_total += l_gaze
+                loss_dict['l_gaze'] = l_gaze
             # gan loss
             fake_g_pred = self.net_d(self.output)
             l_g_gan = self.cri_gan(fake_g_pred, True, is_disc=False)

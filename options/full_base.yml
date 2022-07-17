@@ -1,5 +1,5 @@
 # general settings
-name: ffhq_x2
+name: full_base
 model_type: RealESRNetModel
 scale: 2
 num_gpu: auto  # auto: can infer from your visible devices automatically. official: 4 GPUs
@@ -33,9 +33,13 @@ queue_size: 160
 # dataset and data loader settings
 datasets:
   train:
-    name: FFHQ
-    type: FFHQESRDataset
-    dataroot_gt: /public/caixin/GazeData/ffhq_512
+    name: Full
+    type: FullDataset
+    split: train
+    # dataroot_gt: datasets/ffhq/ffhq_512.lmdb
+    dataroot_gt_xgaze: /public/caixin/GazeData/eth_512
+    dataroot_gts: [/public/caixin/GazeData/ffhq_512,
+    /public/caixin/GazeData/mvfhq_512]
 
     io_backend:
       type: disk
@@ -96,7 +100,9 @@ network_g:
 
 # path
 path:
+  # pretrain_network_g: experiments/pretrained_models/RealESRGAN_x4plus.pth
   pretrain_network_g: ~
+
   param_key_g: params_ema
   strict_load_g: False
   resume_state: ~
@@ -129,7 +135,7 @@ train:
 # Uncomment these for validation
 # validation settings
 val:
-  val_freq: !!float 5
+  val_freq: !!float 5000
   save_img: True
 
   metrics:
