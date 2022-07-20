@@ -19,7 +19,7 @@ for i in {00..14}
 
 
 
-    CUDA_VISIBLE_DEVICES=`expr $i % $degree` python inference_realesrgan.py -i /home/caixin/GazeData/MPIIFaceGaze/Image/p$i/face -o /data1/GazeData/MPIIRes/$v\_$iter/Image/p$i/face --version $1  --iter $2 --sothis $3  &
+    CUDA_VISIBLE_DEVICES=`expr $i % 4` python inference_realesrgan.py -i /home/caixin/GazeData/MPIIFaceGaze/Image/p$i/face -o /data1/GazeData/MPIIRes/$v\_$iter/Image/p$i/face --version $1  --iter $2 --sothis $3  -g 0 &
 
     echo $i
     [ `expr $i % $degree` -eq 7 ] && [  $i -le 14 ] && wait

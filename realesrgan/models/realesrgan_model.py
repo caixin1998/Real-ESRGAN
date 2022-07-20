@@ -252,7 +252,7 @@ class RealESRGANModel(SRGANModel):
 
             if 'network_gaze' in self.opt:
                 gaze_weight = self.opt['train']['gaze_weight']
-                out_resize = self.resize_for_gaze(self.output)
+                out_resize = self.output
                 x_in = {"face":out_resize,
                 "gaze":self.gaze}
                 gaze_out = self.network_gaze(x_in)

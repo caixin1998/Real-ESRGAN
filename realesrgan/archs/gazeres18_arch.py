@@ -280,7 +280,7 @@ def resnet152(pretrained=False, **kwargs):
 
 @ARCH_REGISTRY.register()
 class GazeRes18(nn.Module):
-    def __init__(self, drop_p=0.5, upsample_size = None):
+    def __init__(self, drop_p=0.5, upsample_size = 224):
         super(GazeRes18, self).__init__()
         self.img_feature_dim = 256  # the dimension of the CNN feature to represent each frame
         self.upsample_size = upsample_size
@@ -293,7 +293,10 @@ class GazeRes18(nn.Module):
         self.drop = nn.Dropout(drop_p)
 
     def forward(self, x_in):
-        base_out, _ = self.base_model(x_in["face"])
+        input = x_in["face"]
+        if self.upsample_size is not None:
+            input = nn.functional.interpolate(input, size = (self.upsample_size, self.upsample_size), mode='bilinear', align_corners=True)
+        base_out, _ = self.base_model(input)
         base_out = torch.flatten(base_out, start_dim=1)
         output = self.drop(base_out)
         output = self.last_layer(output)
