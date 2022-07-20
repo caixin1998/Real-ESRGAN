@@ -10,7 +10,7 @@
 
 
 echo "Bash version ${BASH_VERSION}..."
-degree=8
+degree=5
 for i in {00..14}
   do
     # mkdir /home/caixin/GazeData/mpii_448/p$i/face
@@ -19,14 +19,14 @@ for i in {00..14}
 
 
 
-    CUDA_VISIBLE_DEVICES=`expr $i % $degree` python inference_realesrgan.py -i /home/caixin/GazeData/MPIIFaceGaze/Image/p$i/face -o /data1/GazeData/MPIIRes/$v\_$iter/Image/p$i/face --version $1  --iter $2 --sothis $3  &
+    CUDA_VISIBLE_DEVICES=`expr $i % 4` python inference_realesrgan.py -i /home/caixin/GazeData/MPIIFaceGaze/Image/p$i/face -o /data1/GazeData/MPIIRes/$1\_$2/Image/p$i/face --version $1  --iter $2 --sothis $3  --fp32 &
 
     echo $i
-    [ `expr $i % $degree` -eq 7 ] && [  $i -le 14 ] && wait
+    [ `expr $i % $degree` -eq 4 ] && [  $i -le 14 ] && wait
     echo hello_$i
   done
-
-cp  -r /home/caixin/GazeData/MPIIFaceGaze/Label /data1/GazeData/MPIIRes/$1
+wait
+cp  -r /home/caixin/GazeData/MPIIFaceGaze/Label /data1/GazeData/MPIIRes/$1\_$2
 # python process_res.py -v $v\_$iter
 
 # degree=4
