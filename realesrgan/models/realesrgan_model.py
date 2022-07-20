@@ -11,6 +11,7 @@ from collections import OrderedDict
 from basicsr.archs import build_network
 from basicsr.losses import build_loss
 from torch.nn import functional as F
+from torchvision.ops import roi_align
 
 
 @MODEL_REGISTRY.register()
@@ -206,6 +207,28 @@ class RealESRGANModel(SRGANModel):
         if 'gaze' in data:
             self.gaze = data['gaze'].to(self.device)
 
+    def get_roi_regions(self, eye_out_size=80):
+
+        device = self.gt.device
+        rois_eyes = []
+        for b in range(self.loc_left_eyes.size(0)):  # loop for batch size
+            # left eye and right eye
+            img_inds = self.loc_left_eyes.new_full((2, 1), b)
+            bbox = torch.stack([self.loc_left_eyes[b, :], self.loc_right_eyes[b, :]], dim=0)  # shape: (2, 4)
+            rois = torch.cat([img_inds, bbox], dim=-1)  # shape: (2, 5)
+            rois_eyes.append(rois)
+
+        rois_eyes = torch.cat(rois_eyes, 0).to(device)
+
+        # real images
+        all_eyes = roi_align(self.gt, boxes=rois_eyes, output_size=eye_out_size)
+        self.left_eyes_gt = all_eyes[0::2, :, :, :]
+        self.right_eyes_gt = all_eyes[1::2, :, :, :]
+        # output
+        all_eyes = roi_align(self.output, boxes=rois_eyes, output_size=eye_out_size)
+        self.left_eyes = all_eyes[0::2, :, :, :]
+        self.right_eyes = all_eyes[1::2, :, :, :]
+
     def nondist_validation(self, dataloader, current_iter, tb_logger, save_img):
         # do not use the synthetic process during validation
         self.is_train = False
@@ -260,6 +283,17 @@ class RealESRGANModel(SRGANModel):
                 l_gaze = self.cri_pix(pred, self.gaze) * gaze_weight
                 l_g_total += l_gaze
                 loss_dict['l_gaze'] = l_gaze
+
+            if "eye_weight" in self.opt['train']:
+                self.get_roi_regions()
+                eye_weight = self.opt['train']['eye_weight']
+                l_g_eye = self.cri_pix(self.left_eyes, self.left_eyes_gt)
+                r_g_eye = self.cri_pix(self.right_eyes, self.right_eyes_gt)
+                loss_eye = eye_weight * (l_g_eye + r_g_eye)
+                l_g_total += loss_eye
+
+                loss_dict['l_g_pix'] = loss_eye
+
             # gan loss
             fake_g_pred = self.net_d(self.output)
             l_g_gan = self.cri_gan(fake_g_pred, True, is_disc=False)

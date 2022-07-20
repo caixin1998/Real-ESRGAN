@@ -11,6 +11,8 @@ from basicsr.data.transforms import augment
 from basicsr.utils import FileClient, get_root_logger, imfrombytes, img2tensor
 from basicsr.utils.registry import DATASET_REGISTRY
 from torch.utils import data as data
+from realesrgan.data.utils import get_component_coordinates
+
 
 
 # @DATASET_REGISTRY.register()
@@ -135,7 +137,10 @@ class XGazeDataset(data.Dataset):
         head2d = line[2]
         face_path = line[0]
         gt_path = face_path
-        lmks = np.array(line[3].split(",")).astype("float").reshape(68, 2)
+        if self.crop_components:
+            lmks = np.array(line[3].split(",")).astype("float").reshape(68, 2)
+            locations = get_component_coordinates(lmks)
+            loc_left_eye, loc_right_eye = locations
 
         label = np.array(gaze2d.split(",")).astype("float")
         # print("label", label)
@@ -224,6 +229,10 @@ class XGazeDataset(data.Dataset):
         label = torch.from_numpy(label).type(torch.FloatTensor)
 
         return_d = {'gt': img_gt, 'kernel1': kernel, 'kernel2': kernel2, 'sinc_kernel': sinc_kernel, 'gt_path': gt_path, 'gaze': label}
+        if self.crop_components:
+            return_d["loc_left_eye"] = loc_left_eye
+            return_d["loc_right_eye"] = loc_right_eye
+
         return return_d
 
     def __len__(self):

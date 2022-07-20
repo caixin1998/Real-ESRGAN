@@ -11,7 +11,7 @@ from basicsr.data.transforms import augment
 from basicsr.utils import FileClient, get_root_logger, imfrombytes, img2tensor
 from basicsr.utils.registry import DATASET_REGISTRY
 from torch.utils import data as data
-
+from realesrgan.data.utils import get_component_coordinates
 
 # @DATASET_REGISTRY.register()
 class DegradDataset(data.Dataset):
@@ -84,7 +84,10 @@ class DegradDataset(data.Dataset):
         # -------------------------------- Load gt images -------------------------------- #
         # Shape: (h, w, c); channel order: BGR; image range: [0, 1], float32.
         gt_path = os.path.join(self.gt_folder, self.paths[index].strip().split(" ")[0])
-        lmks = np.array(self.paths[index].strip().split(" ")[1].split(",")).astype("float").reshape(68, 2)
+        if self.crop_components:
+            lmks = np.array(self.paths[index].strip().split(" ")[1].split(",")).astype("float").reshape(68, 2)
+            locations = get_component_coordinates(lmks)
+            loc_left_eye, loc_right_eye = locations
 
         img_gt = cv2.imread(gt_path)
         img_gt = img_gt.astype(np.float32) / 255.
@@ -156,6 +159,10 @@ class DegradDataset(data.Dataset):
         kernel2 = torch.FloatTensor(kernel2)
 
         return_d = {'gt': img_gt, 'kernel1': kernel, 'kernel2': kernel2, 'sinc_kernel': sinc_kernel, 'gt_path': gt_path,  'gaze': torch.zeros((2))}
+
+        if self.crop_components:
+            return_d["loc_left_eye"] = loc_left_eye
+            return_d["loc_right_eye"] = loc_right_eye
         return return_d
 
     def __len__(self):
