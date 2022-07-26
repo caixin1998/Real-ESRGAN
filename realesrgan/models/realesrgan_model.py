@@ -56,6 +56,8 @@ class RealESRGANModel(SRGANModel):
 
                     self.network_uncertainty.append(network)
 
+
+
     @torch.no_grad()
     def _dequeue_and_enqueue(self):
         """It is the training pair pool for increasing the diversity in a batch.
@@ -243,6 +245,9 @@ class RealESRGANModel(SRGANModel):
         self.left_eyes = all_eyes[0::2, :, :, :]
         self.right_eyes = all_eyes[1::2, :, :, :]
 
+    # def cri_uncertainty(self):
+
+
     def nondist_validation(self, dataloader, current_iter, tb_logger, save_img):
         # do not use the synthetic process during validation
         self.is_train = False
@@ -297,6 +302,13 @@ class RealESRGANModel(SRGANModel):
                 l_gaze = self.cri_pix(pred, self.gaze) * gaze_weight
                 l_g_total += l_gaze
                 loss_dict['l_gaze'] = l_gaze
+
+            if "network_uncertainty" in self.opt:
+                uncertainty_weight = self.opt["train"]["uncertainty_weight"]
+                x_in = {"face": self.output}
+                l_uncertainty = self.cri_uncertainty(x_in) * uncertainty_weight
+                l_g_total += l_uncertainty
+                loss_dict["l_uncertainty"] = l_uncertainty
 
             if "eye_weight" in self.opt['train']:
                 self.get_roi_regions()
