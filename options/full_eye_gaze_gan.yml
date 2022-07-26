@@ -1,5 +1,5 @@
 # general settings
-name: full_eye_gan8
+name: full_eye_gaze_gan
 model_type: RealESRGANModel
 scale: 2
 num_gpu: auto  # auto: can infer from your visible devices automatically. official: 4 GPUs
@@ -29,8 +29,10 @@ poisson_scale_range2: [0.05, 2.5]
 gray_noise_prob2: 0.4
 jpeg_range2: [30, 95]
 
+
+
 gt_size: 512
-queue_size: 240
+queue_size: 160
 
 # dataset and data loader settings
 datasets:
@@ -62,9 +64,9 @@ datasets:
     betag_range2: [0.5, 4]
     betap_range2: [1, 2]
 
-    crop_components: true
-
     final_sinc_prob: 0.8
+
+    crop_components: true
 
     gt_size: 512
     use_hflip: True
@@ -72,8 +74,8 @@ datasets:
 
     # data loader
     use_shuffle: true
-    num_worker_per_gpu: 2
-    batch_size_per_gpu: 1
+    num_worker_per_gpu: 4
+    batch_size_per_gpu: 4
     dataset_enlarge_ratio: 1
     prefetch_mode: ~
 
@@ -108,15 +110,19 @@ network_d:
   num_feat: 64
   skip_connection: True
 
+network_gaze:
+  type: GazeRes18
+
 # path
 path:
   pretrain_network_g: experiments/full_base/models/net_g_80000.pth
+  pretrain_network_gaze: experiments/pretrained_models/best-epoch=27_val_error=5.5868_xgaze.ckpt
   # pretrain_network_g: ~
 
   param_key_g: params_ema
   strict_load_g: False
   resume_state: ~
-
+  ignore_resume_networks: ['network_gaze']
 # training settings
 train:
   ema_decay: 0.999
@@ -138,15 +144,8 @@ train:
 
   total_iter: 1000000
   warmup_iter: -1  # no warm up
-
+  gaze_weight: 0.5
   eye_weight: 1
-  # gaze_weight: 1
-
-  L1_opt:
-    type: L1Loss
-    loss_weight: 1.0
-    reduction: mean
-
   # losses
   pixel_opt:
     type: L1Loss

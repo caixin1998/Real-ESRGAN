@@ -292,7 +292,7 @@ class RealESRGANModel(SRGANModel):
                 loss_eye = eye_weight * (l_g_eye + r_g_eye)
                 l_g_total += loss_eye
 
-                loss_dict['l_g_pix'] = loss_eye
+                loss_dict['l_g_eye'] = loss_eye
 
             # gan loss
             fake_g_pred = self.net_d(self.output)
