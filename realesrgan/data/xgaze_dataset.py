@@ -150,7 +150,7 @@ class XGazeDataset(data.Dataset):
         # -------------------- Do augmentation for training: flip, rotation -------------------- #
         img_gt, status = augment(img_gt, self.opt['use_hflip'], rotation=False, return_status=True)
 
-        if status[0]:
+        if status[0] and self.crop_components:
             lmks = fliplr_joints(lmks, self.out_size)
 
         # eye_lmks = lmks[36:48]

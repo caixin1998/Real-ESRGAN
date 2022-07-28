@@ -43,7 +43,7 @@ class RealESRGANModel(SRGANModel):
                 param.requires_grad = False
 
         if "network_uncertainty" in self.opt:
-            load_path =self.opt["path"].get("pretrain_network_uncertainty")
+            load_path =self.opt["pretrain_network_uncertainty"]
             self.network_uncertainty = []
             if load_path is not None:
                 for network_path in load_path:
@@ -245,8 +245,13 @@ class RealESRGANModel(SRGANModel):
         self.left_eyes = all_eyes[0::2, :, :, :]
         self.right_eyes = all_eyes[1::2, :, :, :]
 
-    # def cri_uncertainty(self):
-
+    def cri_uncertainty(self, x_in):
+        pred_gaze_all = torch.zeros((x_in["face"].shape[0], len(self.network_uncertainty), 2))
+        pred_gaze_all = pred_gaze_all.to(self.device)
+        for i, network in enumerate(self.network_uncertainty):
+            pred_gaze_all[:,i,:] = network(x_in)["pred"]
+        uncertainty = torch.mean(torch.std(pred_gaze_all, dim = 1))
+        return uncertainty
 
     def nondist_validation(self, dataloader, current_iter, tb_logger, save_img):
         # do not use the synthetic process during validation
@@ -305,7 +310,7 @@ class RealESRGANModel(SRGANModel):
 
             if "network_uncertainty" in self.opt:
                 uncertainty_weight = self.opt["train"]["uncertainty_weight"]
-                x_in = {"face": self.output}
+                x_in = {"face": self.output, "gaze": self.gaze}
                 l_uncertainty = self.cri_uncertainty(x_in) * uncertainty_weight
                 l_g_total += l_uncertainty
                 loss_dict["l_uncertainty"] = l_uncertainty
