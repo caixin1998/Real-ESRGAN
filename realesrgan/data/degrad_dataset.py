@@ -45,7 +45,7 @@ class DegradDataset(data.Dataset):
             # Each line in the meta_info describes the relative path to an image
 
         self.use_lmk = opt.get('use_lmk', False)
-        self.crop_components = opt.get('crop_components', False)  # facial components
+        self.crop_components = opt.get('crop_components', True)  # facial components
         self.eye_enlarge_ratio = opt.get('eye_enlarge_ratio', 1)  # whether enlarge eye regions
 
         self.paths = []

@@ -75,7 +75,7 @@ class XGazeDataset(data.Dataset):
         self.im_root = os.path.join(self.root, "Image")
 
         self.use_lmk = opt.get('use_lmk', False)
-        self.crop_components = opt.get('crop_components', False)  # facial components
+        self.crop_components = opt.get('crop_components', True)  # facial components
         self.eye_enlarge_ratio = opt.get('eye_enlarge_ratio', 1)  # whether enlarge eye regions
 
         self.path = [osp.join(self.label_path, path) for path in os.listdir(self.label_path) if path.split('.')[0][-4:] in self.key_to_use]
@@ -124,7 +124,6 @@ class XGazeDataset(data.Dataset):
         self.pulse_tensor = torch.zeros(21, 21).float()  # convolving with pulse tensor brings no blurry effect
         self.pulse_tensor[10, 10] = 1
 
-        self.crop_components = opt.get('crop_components', False)
 
     def __getitem__(self, index):
 
@@ -132,7 +131,6 @@ class XGazeDataset(data.Dataset):
         # Shape: (h, w, c); channel order: BGR; image range: [0, 1], float32.
         line = self.lines[index]
         line = line.strip().split(" ")
-
         gaze2d = line[1]
         head2d = line[2]
         face_path = line[0]
@@ -152,14 +150,14 @@ class XGazeDataset(data.Dataset):
         # -------------------- Do augmentation for training: flip, rotation -------------------- #
         img_gt, status = augment(img_gt, self.opt['use_hflip'], rotation=False, return_status=True)
 
-        if status[0]:
+        if status[0] and self.crop_components:
             lmks = fliplr_joints(lmks, self.out_size)
 
-        eye_lmks = lmks[36:48]
-        nparts = eye_lmks.shape[0]
-        h, w, _ = img_gt.shape
-        target = np.zeros((nparts, h, w))
-        tpts = eye_lmks.copy()
+        # eye_lmks = lmks[36:48]
+        # nparts = eye_lmks.shape[0]
+        # h, w, _ = img_gt.shape
+        # target = np.zeros((nparts, h, w))
+        # tpts = eye_lmks.copy()
         # crop or pad to 400
         # TODO: 400 is hard-coded. You may change it accordingly
         # h, w = img_gt.shape[0:2]

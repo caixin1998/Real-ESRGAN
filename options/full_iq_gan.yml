@@ -1,5 +1,5 @@
 # general settings
-name: full_eye_gan8
+name: full_iq_gan
 model_type: RealESRGANModel
 scale: 2
 num_gpu: auto  # auto: can infer from your visible devices automatically. official: 4 GPUs
@@ -30,7 +30,7 @@ gray_noise_prob2: 0.4
 jpeg_range2: [30, 95]
 
 gt_size: 512
-queue_size: 240
+queue_size: 160
 
 # dataset and data loader settings
 datasets:
@@ -62,8 +62,6 @@ datasets:
     betag_range2: [0.5, 4]
     betap_range2: [1, 2]
 
-    crop_components: true
-
     final_sinc_prob: 0.8
 
     gt_size: 512
@@ -72,8 +70,8 @@ datasets:
 
     # data loader
     use_shuffle: true
-    num_worker_per_gpu: 2
-    batch_size_per_gpu: 1
+    num_worker_per_gpu: 4
+    batch_size_per_gpu: 4
     dataset_enlarge_ratio: 1
     prefetch_mode: ~
 
@@ -108,6 +106,22 @@ network_d:
   num_feat: 64
   skip_connection: True
 
+network_uncertainty:
+  type: GazeRes18
+
+
+pretrain_network_uncertainty: [
+              "experiments/pretrained_models/uncertainty/best-epoch=07_val_error=7.0201_mpii.ckpt",
+              "experiments/pretrained_models/uncertainty/epoch=09_val_error=7.3614_mpii.ckpt",
+              "experiments/pretrained_models/uncertainty/epoch=11_val_error=7.5302_mpii.ckpt",
+              "experiments/pretrained_models/uncertainty/best-epoch=11_val_error=7.1551_mpii.ckpt",
+              "experiments/pretrained_models/uncertainty/epoch=12_val_error=6.7686_mpii.ckpt",
+              "experiments/pretrained_models/uncertainty/epoch=14_val_error=5.8100_xgaze.ckpt",
+              "experiments/pretrained_models/uncertainty/epoch=16_val_error=6.1347_xgaze.ckpt",
+              "experiments/pretrained_models/uncertainty/epoch=18_val_error=5.7868_xgaze.ckpt",
+              "experiments/pretrained_models/uncertainty/epoch=20_val_error=5.7638_xgaze.ckpt",
+              "experiments/pretrained_models/uncertainty/best-epoch=03_val_error=7.0335_mpii.ckpt"
+]
 # path
 path:
   pretrain_network_g: experiments/full_base/models/net_g_80000.pth
@@ -136,11 +150,10 @@ train:
     milestones: [1000000]
     gamma: 0.5
 
+
   total_iter: 1000000
   warmup_iter: -1  # no warm up
-
-  eye_weight: 1
-  # gaze_weight: 1
+  uncertainty_weight: 1
 
   L1_opt:
     type: L1Loss
