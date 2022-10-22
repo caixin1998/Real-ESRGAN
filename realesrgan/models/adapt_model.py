@@ -15,8 +15,8 @@ from torchvision.ops import roi_align
 
 
 @MODEL_REGISTRY.register()
-class RealESRGANModel(SRGANModel):
-    """RealESRGAN Model for Real-ESRGAN: Training Real-World Blind Super-Resolution with Pure Synthetic Data.
+class ADAPTModel(SRGANModel):
+    """ADAPTModel Model for Real-ESRGAN: Training Real-World Blind Super-Resolution with Pure Synthetic Data.
 
     It mainly performs:
     1. randomly synthesize LQ images in GPU tensors
@@ -24,7 +24,7 @@ class RealESRGANModel(SRGANModel):
     """
 
     def __init__(self, opt):
-        super(RealESRGANModel, self).__init__(opt)
+        super(ADAPTModel, self).__init__(opt)
         self.jpeger = DiffJPEG(differentiable=False).cuda()  # simulate JPEG compression artifacts
         self.usm_sharpener = USMSharp().cuda()  # do usm sharpening
 
@@ -43,8 +43,8 @@ class RealESRGANModel(SRGANModel):
                 param.requires_grad = False
 
         if "network_uncertainty" in self.opt:
-            load_path =self.opt["path"].get("pretrain_network_uncertainty")
-            self.network_uncertainty = []
+            load_path =self.opt["pretrain_network_uncertainty"]
+            self.params_uncertainty = []
             if load_path is not None:
                 for network_path in load_path:
                     network = build_network(self.opt["network_uncertainty"])
@@ -53,10 +53,26 @@ class RealESRGANModel(SRGANModel):
                     network.eval()
                     for param in network.parameters():
                         param.requires_grad = False
-
+                        if not param.requires_grad:
+                            continue
+                        self.params_uncertainty += [{'params': [param]}]
                     self.network_uncertainty.append(network)
 
 
+    def setup_optimizers(self):
+        train_opt = self.opt['train']
+        # optimizer g
+        optim_type = train_opt['optim_g'].pop('type')
+        self.optimizer_g = self.get_optimizer(optim_type, self.net_g.parameters(), **train_opt['optim_g'])
+        self.optimizers.append(self.optimizer_g)
+        # optimizer d
+        optim_type = train_opt['optim_d'].pop('type')
+        self.optimizer_d = self.get_optimizer(optim_type, self.net_d.parameters(), **train_opt['optim_d'])
+        self.optimizers.append(self.optimizer_d)
+        # optimizer u
+        optim_type = train_opt['optim_u'].pop('type')
+        self.optimizer_u = self.get_optimizer(optim_type, self.params_uncertainty, **train_opt['optim_u'])
+        self.optimizers.append(self.optimizer_u)
 
     @torch.no_grad()
     def _dequeue_and_enqueue(self):
@@ -245,13 +261,18 @@ class RealESRGANModel(SRGANModel):
         self.left_eyes = all_eyes[0::2, :, :, :]
         self.right_eyes = all_eyes[1::2, :, :, :]
 
-    # def cri_uncertainty(self):
-
+    def cri_uncertainty(self, x_in):
+        pred_gaze_all = torch.zeros((x_in["face"].shape[0], len(self.network_uncertainty), 2))
+        pred_gaze_all = pred_gaze_all.to(self.device)
+        for i, network in enumerate(self.network_uncertainty):
+            pred_gaze_all[:,i,:] = network(x_in)["pred"]
+        uncertainty = torch.mean(torch.std(pred_gaze_all, dim = 1))
+        return uncertainty
 
     def nondist_validation(self, dataloader, current_iter, tb_logger, save_img):
         # do not use the synthetic process during validation
         self.is_train = False
-        super(RealESRGANModel, self).nondist_validation(dataloader, current_iter, tb_logger, save_img)
+        super(ADAPTModel, self).nondist_validation(dataloader, current_iter, tb_logger, save_img)
         self.is_train = True
 
     def optimize_parameters(self, current_iter):
@@ -269,10 +290,6 @@ class RealESRGANModel(SRGANModel):
         # optimize net_g
         for p in self.net_d.parameters():
             p.requires_grad = False
-
-        for network in self.network_uncertainty:
-            for param in network.parameters():
-                param.requires_grad = False
 
         self.optimizer_g.zero_grad()
         self.output = self.net_g(self.lq)
@@ -309,7 +326,7 @@ class RealESRGANModel(SRGANModel):
 
             if "network_uncertainty" in self.opt:
                 uncertainty_weight = self.opt["train"]["uncertainty_weight"]
-                x_in = {"face": self.output}
+                x_in = {"face": self.output, "gaze": self.gaze}
                 l_uncertainty = self.cri_uncertainty(x_in) * uncertainty_weight
                 l_g_total += l_uncertainty
                 loss_dict["l_uncertainty"] = l_uncertainty
@@ -322,7 +339,7 @@ class RealESRGANModel(SRGANModel):
                 loss_eye = eye_weight * (l_g_eye + r_g_eye)
                 l_g_total += loss_eye
 
-                loss_dict['l_g_pix'] = loss_eye
+                loss_dict['l_g_eye'] = loss_eye
 
             # gan loss
             fake_g_pred = self.net_d(self.output)
@@ -341,6 +358,7 @@ class RealESRGANModel(SRGANModel):
             for param in network.parameters():
                 param.requires_grad = True
 
+
         self.optimizer_d.zero_grad()
         # real
         real_d_pred = self.net_d(gan_gt)
@@ -356,7 +374,11 @@ class RealESRGANModel(SRGANModel):
         l_d_fake.backward()
         self.optimizer_d.step()
 
-
+        self.optimizer_u.zero_grad()
+        x_in = {"face": self.output.detach().clone(), "gaze": self.gaze}
+        l_uncertainty = self.cri_uncertainty(x_in) * uncertainty_weight
+        l_uncertainty.backward()
+        self.optimizer_u.step()
 
         if self.ema_decay > 0:
             self.model_ema(decay=self.ema_decay)

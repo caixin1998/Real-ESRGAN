@@ -226,7 +226,7 @@ class XGazeDataset(data.Dataset):
             label = np.array([label[0], -label[1]], dtype=np.float32)
         label = torch.from_numpy(label).type(torch.FloatTensor)
 
-        return_d = {'gt': img_gt, 'kernel1': kernel, 'kernel2': kernel2, 'sinc_kernel': sinc_kernel, 'gt_path': gt_path, 'gaze': label}
+        return_d = {'gt': img_gt, 'kernel1': kernel, 'kernel2': kernel2, 'sinc_kernel': sinc_kernel, 'gt_path': gt_path, 'gaze': label, 'weight': 0}
         if self.crop_components:
             return_d["loc_left_eye"] = loc_left_eye
             return_d["loc_right_eye"] = loc_right_eye

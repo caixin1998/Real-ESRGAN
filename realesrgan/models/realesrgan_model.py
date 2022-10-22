@@ -1,6 +1,7 @@
 import numpy as np
 import random
 import torch
+import os
 from basicsr.data.degradations import random_add_gaussian_noise_pt, random_add_poisson_noise_pt
 from basicsr.data.transforms import paired_random_crop
 from basicsr.models.srgan_model import SRGANModel
@@ -44,9 +45,22 @@ class RealESRGANModel(SRGANModel):
 
         if "network_uncertainty" in self.opt:
             load_path =self.opt["pretrain_network_uncertainty"]
+            ckpt_path_list = []
+            ckpt_list = os.listdir(load_path)
+            for ckpt in ckpt_list:
+                if ckpt[0:5] == "epoch":
+                    if ckpt.endswith("%s.ckpt"%"mpii"):
+                        ckpt_path_list += [os.path.join(load_path, ckpt)]
+            ckpt_path_list.sort()
+            pre_models = []
+            start,end,interval = self.opt["sei"]
+            for ckpt_path in ckpt_path_list[start:end:interval]:
+                if os.path.isfile(ckpt_path):
+                    pre_models.append(ckpt_path)
+
             self.network_uncertainty = []
-            if load_path is not None:
-                for network_path in load_path:
+            if pre_models is not None:
+                for network_path in pre_models:
                     network = build_network(self.opt["network_uncertainty"])
                     network = self.model_to_device(network)
                     self.load_network(network, network_path, True, "state_dict")
@@ -223,6 +237,12 @@ class RealESRGANModel(SRGANModel):
         if 'gaze' in data:
             self.gaze = data['gaze'].to(self.device)
 
+        if 'weight' in data:
+            self.weight = data["weight"].to(self.device)
+            self.weight = self.weight[:,None,None,None].expand(-1,*self.gt.shape[1:])
+        else:
+            self.weight = torch.ones(self.gts.shape).to(self.device)
+
     def get_roi_regions(self, eye_out_size=80):
 
         device = self.gt.device
@@ -277,7 +297,7 @@ class RealESRGANModel(SRGANModel):
 
         self.optimizer_g.zero_grad()
         self.output = self.net_g(self.lq)
-
+        self.output = self.weight * self.output + (1 - self.weight) * self.gt
 
         l_g_total = 0
         loss_dict = OrderedDict()

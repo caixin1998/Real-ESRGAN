@@ -158,7 +158,7 @@ class DegradDataset(data.Dataset):
         kernel = torch.FloatTensor(kernel)
         kernel2 = torch.FloatTensor(kernel2)
 
-        return_d = {'gt': img_gt, 'kernel1': kernel, 'kernel2': kernel2, 'sinc_kernel': sinc_kernel, 'gt_path': gt_path,  'gaze': torch.zeros((2))}
+        return_d = {'gt': img_gt, 'kernel1': kernel, 'kernel2': kernel2, 'sinc_kernel': sinc_kernel, 'gt_path': gt_path,  'gaze': torch.zeros((2)), 'weight': 1}
 
         if self.crop_components:
             return_d["loc_left_eye"] = loc_left_eye

@@ -1,14 +1,12 @@
 # general settings
-name: full_gaze_iq_gan
-model_type: RealESRGANModel
+name: full_base
+model_type: RealESRNetModel
 scale: 2
 num_gpu: auto  # auto: can infer from your visible devices automatically. official: 4 GPUs
 manual_seed: 0
 
 # ----------------- options for synthesizing training data in RealESRNetModel ----------------- #
-l1_gt_usm: True
-percep_gt_usm: True
-gan_gt_usm: False
+gt_usm: True  # USM the ground-truth
 
 # the first degradation process
 resize_prob: [0.2, 0.7, 0.1]  # up, down, keep
@@ -30,7 +28,7 @@ gray_noise_prob2: 0.4
 jpeg_range2: [30, 95]
 
 gt_size: 512
-queue_size: 120
+queue_size: 160
 
 # dataset and data loader settings
 datasets:
@@ -39,9 +37,9 @@ datasets:
     type: FullDataset
     split: train
     # dataroot_gt: datasets/ffhq/ffhq_512.lmdb
-    dataroot_gt_xgaze: /data1/GazeData/eth_512
-    dataroot_gts: [/data1/GazeData/ffhq_512]
-    # /public/caixin/GazeData/mvfhq_512]
+    dataroot_gt_xgaze: /public/caixin/GazeData/eth_512
+    dataroot_gts: [/public/caixin/GazeData/ffhq_512,
+    /public/caixin/GazeData/mvfhq_512]
 
     io_backend:
       type: disk
@@ -70,8 +68,8 @@ datasets:
 
     # data loader
     use_shuffle: true
-    num_worker_per_gpu: 2
-    batch_size_per_gpu: 2
+    num_worker_per_gpu: 4
+    batch_size_per_gpu: 8
     dataset_enlarge_ratio: 1
     prefetch_mode: ~
 
@@ -79,7 +77,7 @@ datasets:
     name: MPII
     type: MPIIDataset
     split: valid
-    dataroot_gt: /home/caixin/GazeData/MPIIFaceGaze
+    dataroot_gt: /public/caixin/GazeData/MPIIFaceGaze
     pic_num: 500
   # Uncomment these for validation
   # val:
@@ -100,41 +98,21 @@ network_g:
   num_grow_ch: 32
   scale: 2
 
-network_d:
-  type: UNetDiscriminatorSN
-  num_in_ch: 3
-  num_feat: 64
-  skip_connection: True
-
-network_uncertainty:
-  type: GazeRes18
-
-sei: [10,30,2]
-
-
-pretrain_network_uncertainty: /home1/caixin/FewShotGaze/logs/gaze_estimation_xgaze/gazeres18/logs/version_5
 # path
 path:
-  pretrain_network_g: experiments/full_base/models/net_g_80000.pth
-  pretrain_network_gaze: experiments/pretrained_models/best-epoch=27_val_error=5.5868_xgaze.ckpt
-  # pretrain_network_g: ~
+  # pretrain_network_g: experiments/pretrained_models/RealESRGAN_x4plus.pth
+  pretrain_network_g: ~
 
   param_key_g: params_ema
   strict_load_g: False
   resume_state: ~
-  ignore_resume_networks: ['network_gaze']
 
 # training settings
 train:
   ema_decay: 0.999
   optim_g:
     type: Adam
-    lr: !!float 1e-4
-    weight_decay: 0
-    betas: [0.9, 0.99]
-  optim_d:
-    type: Adam
-    lr: !!float 1e-4
+    lr: !!float 2e-4
     weight_decay: 0
     betas: [0.9, 0.99]
 
@@ -143,16 +121,8 @@ train:
     milestones: [1000000]
     gamma: 0.5
 
-
   total_iter: 1000000
   warmup_iter: -1  # no warm up
-  uncertainty_weight: 1
-  gaze_weight: 0.5
-
-  L1_opt:
-    type: L1Loss
-    loss_weight: 1.0
-    reduction: mean
 
   # losses
   pixel_opt:
@@ -160,31 +130,8 @@ train:
     loss_weight: 1.0
     reduction: mean
 
-  perceptual_opt:
-    type: PerceptualLoss
-    layer_weights:
-      # before relu
-      'conv1_2': 0.1
-      'conv2_2': 0.1
-      'conv3_4': 1
-      'conv4_4': 1
-      'conv5_4': 1
-    vgg_type: vgg19
-    use_input_norm: true
-    perceptual_weight: !!float 1.0
-    style_weight: 0
-    range_norm: false
-    criterion: l1
-  # gan loss
-  gan_opt:
-    type: GANLoss
-    gan_type: vanilla
-    real_label_val: 1.0
-    fake_label_val: 0.0
-    loss_weight: !!float 1e-1
 
-  net_d_iters: 1
-  net_d_init_iters: 0
+
 # Uncomment these for validation
 # validation settings
 val:
